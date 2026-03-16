@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@xenova/transformers"],
+  turbopack: {},
   webpack: (config, { isServer }) => {
     // WASM desteği (Webpack kullanıldığında)
     config.experiments = {
