@@ -24,13 +24,13 @@ import { useLanguage } from "@/components/language-provider";
 
 const LANGUAGES = [
   { code: "auto", label: "Otomatik Algıla" },
-  { code: "turkish", label: "Türkçe" },
-  { code: "english", label: "İngilizce" },
-  { code: "german", label: "Almanca" },
-  { code: "french", label: "Fransızca" },
-  { code: "spanish", label: "İspanyolca" },
-  { code: "russian", label: "Rusça" },
-  { code: "arabic", label: "Arapça" },
+  { code: "tr", label: "Türkçe" },
+  { code: "en", label: "İngilizce" },
+  { code: "de", label: "Almanca" },
+  { code: "fr", label: "Fransızca" },
+  { code: "es", label: "İspanyolca" },
+  { code: "ru", label: "Rusça" },
+  { code: "ar", label: "Arapça" },
 ];
 
 function ProcessingView({ 
@@ -166,13 +166,13 @@ export default function DashboardHomePage() {
 
       // 2. Fallback to mono Float32Array (Exactly like Katip)
       setLogs((prev) => [...prev, "Ses dosyası Float32Array formatına (16kHz) dönüştürülüyor..."]);
-      let audio: Float32Array;
+      let rawAudio: Float32Array;
       if (audioBuffer.numberOfChannels === 1) {
-        audio = audioBuffer.getChannelData(0);
+        rawAudio = audioBuffer.getChannelData(0);
       } else {
         const length = audioBuffer.length;
         const channels = audioBuffer.numberOfChannels;
-        audio = new Float32Array(length);
+        rawAudio = new Float32Array(length);
 
         const channelData: Float32Array[] = [];
         for (let c = 0; c < channels; c++) {
@@ -184,9 +184,12 @@ export default function DashboardHomePage() {
           for (let c = 0; c < channels; c++) {
             sum += channelData[c]![i]!;
           }
-          audio[i] = sum / channels;
+          rawAudio[i] = sum / channels;
         }
       }
+      
+      // Make a hard copy for postMessage to avoid detach/DataCloneError issues
+      const audio = new Float32Array(rawAudio);
 
       // 3. Worker Başlat
       if (!workerRef.current) {
@@ -266,17 +269,60 @@ export default function DashboardHomePage() {
             }
             break;
 
-          case "complete":
+          case "complete": {
             setStatusText("Tamamlanıyor...");
             setProgress(100);
             setLogs((prev) => [...prev, "Deşifre bitti, sonuçlar kaydediliyor..."]);
-            
-            const chunks = message.data.chunks || [];
-            const segments = chunks.map((c: any) => ({
-              start: Array.isArray(c.timestamp) ? formatTime(c.timestamp[0]) : "00:00",
-              end: Array.isArray(c.timestamp) ? formatTime(c.timestamp[1] || c.timestamp[0]) : "00:00",
-              text: c.text.trim(),
-            }));
+
+            // Whisper pipeline sonucu şu formatlardan birinde gelir:
+            // 1. Single object: { text: "...", chunks: [{timestamp, text}...] }
+            // 2. Array: [{ text: "..." }, {chunks: [...]}]
+            // 3. Plain string: "..."
+            const raw = message.data;
+            let resultObj: { text?: string; chunks?: any[] } = {};
+
+            if (typeof raw === "string") {
+              resultObj = { text: raw };
+            } else if (Array.isArray(raw)) {
+              // Tüm item'ların text ve chunks'larını birleştir
+              const textParts: string[] = [];
+              for (const item of raw) {
+                if (item && typeof item === "object") {
+                  if (typeof item.text === "string" && item.text.trim()) {
+                    textParts.push(item.text.trim());
+                  }
+                  if (item.chunks && !resultObj.chunks) resultObj.chunks = item.chunks;
+                }
+              }
+              if (textParts.length > 0) resultObj.text = textParts.join(" ");
+            } else if (raw && typeof raw === "object") {
+              resultObj = raw;
+            }
+
+            const chunks = resultObj.chunks || [];
+
+            setLogs((prev) => [...prev, `Raw output debug: text="${String(resultObj.text).slice(0, 80)}", chunks=${chunks.length}`]);
+
+            let segments;
+            if (chunks.length > 0) {
+              segments = chunks.map((c: any) => ({
+                start: Array.isArray(c.timestamp) ? formatTime(c.timestamp[0]) : "00:00",
+                end: Array.isArray(c.timestamp) ? formatTime(c.timestamp[1] || c.timestamp[0]) : "00:00",
+                text: (c.text || "").trim(),
+              })).filter((s: any) => s.text);
+            } else if (resultObj.text && resultObj.text.trim()) {
+              segments = [{
+                start: "00:00",
+                end: durationStr,
+                text: resultObj.text.trim(),
+              }];
+            } else {
+              segments = [{
+                start: "00:00",
+                end: durationStr,
+                text: "(Ses anlaşılamadı veya metin üretilemedi)",
+              }];
+            }
 
             const record: TranscriptRecord = {
               id: generateId(),
@@ -292,6 +338,7 @@ export default function DashboardHomePage() {
             saveTranscript(record);
             router.push(`/dashboard/transcribe?id=${record.id}`);
             break;
+          }
 
           case "error":
             console.error("Worker error:", message.data);

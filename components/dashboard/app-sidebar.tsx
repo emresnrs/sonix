@@ -12,14 +12,24 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Avatar from "@radix-ui/react-avatar";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/components/language-provider";
-
-// Removed static nav arrays because we need the 't' function from useLanguage dynamically
+import { getCurrentUser, logout } from "@/lib/auth-store";
 
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
   const { t } = useLanguage();
+
+  const user = getCurrentUser();
+
+  // Avatar initials: Ad Soyadın baş harfleri (en fazla 2)
+  const initials = user?.fullName
+    ? user.fullName
+        .split(" ")
+        .slice(0, 2)
+        .map((w) => w[0]?.toUpperCase() ?? "")
+        .join("")
+    : (user?.username?.[0]?.toUpperCase() ?? "?");
 
   const navMain = [
     { title: t("sidebar.home"), url: "/dashboard", icon: Home },
@@ -36,6 +46,7 @@ export function AppSidebar() {
   }
 
   function handleLogout() {
+    logout();
     router.push("/login");
   }
 
@@ -114,12 +125,18 @@ export function AppSidebar() {
                   size="lg"
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground cursor-pointer"
                 >
-                  <Avatar.Root className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-                    <Avatar.Fallback className="text-xs font-medium">AD</Avatar.Fallback>
+                  <Avatar.Root className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <Avatar.Fallback className="flex h-full w-full items-center justify-center rounded-lg text-xs font-semibold text-primary">
+                      {initials}
+                    </Avatar.Fallback>
                   </Avatar.Root>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">admin</span>
-                    <span className="truncate text-xs text-muted-foreground">admin@sonix.app</span>
+                    <span className="truncate font-medium">
+                      {user?.fullName || user?.username || "Kullanıcı"}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      @{user?.username || "—"}
+                    </span>
                   </div>
                   <ChevronsUpDown className="ml-auto size-4" />
                 </SidebarMenuButton>
@@ -153,7 +170,7 @@ export function AppSidebar() {
                     onSelect={handleLogout}
                   >
                     <LogOut className="size-4" />
-                    {t("header.login").replace("Yap", "Çık")} {/* Basic logout until further loc */}
+                    Çıkış Yap
                   </DropdownMenu.Item>
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>

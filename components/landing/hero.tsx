@@ -99,17 +99,7 @@ export function HeroSection() {
                     Hemen Başla
                   </Link>
                 </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="cursor-pointer px-8"
-                >
-                  <Link href="#how-it-works">
-                    <AudioWaveform className="size-4" />
-                    Nasıl Çalışır?
-                  </Link>
-                </Button>
+
               </motion.div>
             </div>
           </motion.div>

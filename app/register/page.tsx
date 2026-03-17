@@ -7,6 +7,7 @@ import { AudioLines, Eye, EyeOff, UserPlus, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { registerUser } from "@/lib/auth-store";
 
 interface PasswordStrength {
   score: number;
@@ -63,15 +64,18 @@ export default function RegisterPage() {
       setError("Şifreler eşleşmiyor.");
       return;
     }
-    if (form.password.length < 6) {
-      setError("Şifre en az 6 karakter olmalı.");
-      return;
-    }
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    // Simulate registration success → redirect to login
-    router.push("/login");
+    await new Promise((r) => setTimeout(r, 500));
+
+    const result = registerUser(form.fullName, form.username, form.password);
+
+    if (result.ok) {
+      router.push("/login?registered=1");
+    } else {
+      setError(result.error);
+      setLoading(false);
+    }
   }
 
   return (
@@ -92,9 +96,7 @@ export default function RegisterPage() {
         </Link>
       </header>
 
-      {/* Main */}
       <main className="flex flex-1 items-center justify-center px-4 py-16">
-        {/* Subtle grid bg */}
         <div
           className="pointer-events-none fixed inset-0 -z-10 dark:hidden"
           style={{
@@ -106,7 +108,6 @@ export default function RegisterPage() {
 
         <div className="w-full max-w-sm">
           <div className="bg-background rounded-2xl border p-8 shadow-lg shadow-zinc-950/5">
-            {/* Header */}
             <div className="mb-6 flex flex-col items-center gap-2 text-center">
               <div className="bg-primary mb-1 rounded-xl p-3">
                 <UserPlus className="text-primary-foreground size-5" />
@@ -146,6 +147,7 @@ export default function RegisterPage() {
                   onChange={(e) => update("username", e.target.value)}
                   required
                 />
+                <p className="text-muted-foreground text-xs">En az 3 karakter, küçük harf</p>
               </div>
 
               {/* Password */}
@@ -176,7 +178,6 @@ export default function RegisterPage() {
                   </button>
                 </div>
 
-                {/* Password strength bar */}
                 {form.password.length > 0 && (
                   <div className="space-y-1.5 pt-1">
                     <div className="flex gap-1">
@@ -184,9 +185,7 @@ export default function RegisterPage() {
                         <div
                           key={i}
                           className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                            i <= strength.score
-                              ? strength.color
-                              : "bg-muted"
+                            i <= strength.score ? strength.color : "bg-muted"
                           }`}
                         />
                       ))}
@@ -197,23 +196,17 @@ export default function RegisterPage() {
                         {strength.label}
                       </span>
                     </p>
-                    {/* Rules */}
                     <ul className="space-y-1">
                       {rules.map((rule) => {
                         const ok = rule.test(form.password);
                         return (
-                          <li
-                            key={rule.label}
-                            className="flex items-center gap-1.5"
-                          >
+                          <li key={rule.label} className="flex items-center gap-1.5">
                             {ok ? (
                               <Check className="size-3 text-emerald-500" />
                             ) : (
                               <X className="text-muted-foreground size-3" />
                             )}
-                            <span
-                              className={`text-xs ${ok ? "text-foreground" : "text-muted-foreground"}`}
-                            >
+                            <span className={`text-xs ${ok ? "text-foreground" : "text-muted-foreground"}`}>
                               {rule.label}
                             </span>
                           </li>
@@ -258,20 +251,16 @@ export default function RegisterPage() {
                   </button>
                 </div>
                 {form.confirm.length > 0 && form.confirm !== form.password && (
-                  <p className="text-destructive text-xs">
-                    Şifreler eşleşmiyor.
-                  </p>
+                  <p className="text-destructive text-xs">Şifreler eşleşmiyor.</p>
                 )}
               </div>
 
-              {/* Error */}
               {error && (
                 <p className="text-destructive rounded-md bg-destructive/10 px-3 py-2 text-sm">
                   {error}
                 </p>
               )}
 
-              {/* Submit */}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? (
                   <span className="flex items-center gap-2">

@@ -34,7 +34,6 @@ class PipelineFactory {
       this.instance = pipeline(this.task, model, {
         quantized,
         progress_callback,
-        // Büyük ortaboy modelleri bellek sorununu aşmak için optimize edelim
         revision: model.includes("/whisper-medium") ? "no_attentions" : "main",
       }) as Promise<AutomaticSpeechRecognitionPipeline>;
     }
@@ -99,15 +98,10 @@ async function transcribe(
   function chunk_callback(chunk: any) {
     const last = chunks_to_process[chunks_to_process.length - 1];
     if (!last) return;
-
     Object.assign(last, chunk);
     last.finalised = true;
-
     if (!chunk.is_last) {
-      chunks_to_process.push({
-        tokens: [],
-        finalised: false,
-      });
+      chunks_to_process.push({ tokens: [], finalised: false });
     }
   }
 
@@ -124,37 +118,55 @@ async function transcribe(
       force_full_sequences: false,
     });
 
-    self.postMessage({
-      status: "update",
-      data: data,
-    });
+    self.postMessage({ status: "update", data: data });
   }
 
   const isDistilWhisper = model.startsWith("distil-whisper/");
 
-  const output = await transcriber(audio, {
+  const baseOptions = {
     top_k: 0,
     do_sample: false,
-
+    // chunk_length_s yalnızca distil için - küçük modeller varsayılanlarını kullansın
     chunk_length_s: isDistilWhisper ? 20 : 30,
     stride_length_s: isDistilWhisper ? 3 : 5,
-
     // @ts-ignore
     language: language || undefined,
     task: subtask,
-
-    return_timestamps: true,
     force_full_sequences: false,
-
     callback_function,
     chunk_callback,
+  };
+
+  // Aşama 1: return_timestamps: true ile dene (segment bazlı zaman damgası için tercihli)
+  // Türkçe gibi bazı dillerde timestamp tokenları boş dizi döndürebilir.
+  let output: any = await transcriber(audio, {
+    ...baseOptions,
+    return_timestamps: true,
   }).catch((error: Error) => {
-    self.postMessage({
-      status: "error",
-      data: error.message,
-    });
+    self.postMessage({ status: "error", data: error.message });
     return null;
   });
+
+  if (output === null) return null;
+
+  // Aşama 2: Eğer chunks boşsa VE text de boş/whitespace ise → timestamps olmadan tekrar dene.
+  // Bu Türkçe MP3 kayıtlarında sık görülen boş çıktı sorununu çözer.
+  const hasChunks = Array.isArray(output?.chunks) && output.chunks.length > 0;
+  const hasText = typeof output?.text === "string" && output.text.trim().length > 0;
+
+  if (!hasChunks && !hasText) {
+    self.postMessage({ status: "update", data: [null, { chunks: [] }] }); // UI'yi sıfırla
+    const retryOutput = await transcriber(audio, {
+      ...baseOptions,
+      return_timestamps: false,
+    }).catch((error: Error) => {
+      self.postMessage({ status: "error", data: error.message });
+      return null;
+    });
+    if (retryOutput !== null) {
+      output = retryOutput;
+    }
+  }
 
   return output;
 }

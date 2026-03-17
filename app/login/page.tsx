@@ -1,19 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AudioLines, Eye, EyeOff, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { loginUser } from "@/lib/auth-store";
 
-// Demo account
-const DEMO_USERS = [{ username: "admin", password: "admin" }];
-
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const registered = searchParams.get("registered") === "1";
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,19 +25,16 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 400));
 
-    const user = DEMO_USERS.find(
-      (u) => u.username === username && u.password === password
-    );
+    const result = loginUser(username, password);
 
-    if (user) {
+    if (result.ok) {
       router.push("/dashboard");
     } else {
-      setError("Kullanıcı adı veya şifre hatalı.");
+      setError(result.error);
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   return (
@@ -58,9 +55,7 @@ export default function LoginPage() {
         </Link>
       </header>
 
-      {/* Main */}
       <main className="flex flex-1 items-center justify-center px-4 py-16">
-        {/* Subtle grid bg */}
         <div
           className="pointer-events-none fixed inset-0 -z-10 dark:hidden"
           style={{
@@ -71,9 +66,7 @@ export default function LoginPage() {
         />
 
         <div className="w-full max-w-sm">
-          {/* Card */}
           <div className="bg-background rounded-2xl border p-8 shadow-lg shadow-zinc-950/5">
-            {/* Icon */}
             <div className="mb-6 flex flex-col items-center gap-2 text-center">
               <div className="bg-primary mb-1 rounded-xl p-3">
                 <LogIn className="text-primary-foreground size-5" />
@@ -86,14 +79,20 @@ export default function LoginPage() {
               </p>
             </div>
 
+            {/* Kayıt başarı mesajı */}
+            {registered && (
+              <div className="mb-4 rounded-lg bg-emerald-500/10 px-4 py-3 text-center text-sm text-emerald-600 dark:text-emerald-400">
+                Hesabınız oluşturuldu! Giriş yapabilirsiniz.
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Username */}
               <div className="space-y-1.5">
                 <Label htmlFor="username">Kullanıcı adı</Label>
                 <Input
                   id="username"
                   type="text"
-                  placeholder="admin"
+                  placeholder="kullanici_adi"
                   autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -101,7 +100,6 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* Password */}
               <div className="space-y-1.5">
                 <Label htmlFor="password">Şifre</Label>
                 <div className="relative">
@@ -130,14 +128,12 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Error */}
               {error && (
                 <p className="text-destructive rounded-md bg-destructive/10 px-3 py-2 text-sm">
                   {error}
                 </p>
               )}
 
-              {/* Submit */}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? (
                   <span className="flex items-center gap-2">
@@ -149,15 +145,6 @@ export default function LoginPage() {
                 )}
               </Button>
             </form>
-
-            {/* Demo note */}
-            <div className="bg-muted/60 mt-5 rounded-lg px-4 py-3">
-              <p className="text-muted-foreground text-center text-xs">
-                Demo hesap:{" "}
-                <span className="text-foreground font-medium">admin</span> /{" "}
-                <span className="text-foreground font-medium">admin</span>
-              </p>
-            </div>
 
             <p className="text-muted-foreground mt-5 text-center text-sm">
               Hesabın yok mu?{" "}
@@ -172,5 +159,13 @@ export default function LoginPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

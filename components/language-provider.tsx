@@ -36,7 +36,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     // keyPath ör: "sidebar.home"
     const keys = keyPath.split(".");
     let result: any = dictionaries[locale];
-    
+
     for (const key of keys) {
       if (result && typeof result === "object" && key in result) {
         result = result[key];
@@ -44,7 +44,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         return keyPath; // Bulunamazsa path'in kendisini dön
       }
     }
-    
+
     return result as string;
   };
 
